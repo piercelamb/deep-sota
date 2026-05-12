@@ -17,6 +17,43 @@ All access goes through the `mcp__lodestone__*` MCP tools. Do not shell out to `
 
 **When not to use lodestone:** if the user's question is about the codebase you're sitting in (its files, its bugs, its tests, its history), don't reach for lodestone. Lodestone is for arXiv research and ingested external repos, not for navigating the current working directory.
 
+## CRITICAL: First action — validate lodestone
+
+**BEFORE calling any `mcp__lodestone__*` tool**, run `validate-env.sh` once per session.
+
+It confirms lodestone is installed, then reads `~/.config/lodestone/config.toml` (the same path lodestone itself uses). If the config is missing, it walks the user through the same first-run picker lodestone's CLI does — provider (from whichever of `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` are set) and model — and persists the choice.
+
+**Locate and run:**
+```bash
+find "$(pwd)" -name "validate-env.sh" -path "*/deep_sota/scripts/checks/*" -type f 2>/dev/null | head -1
+# Fallback if not in the repo:
+# find ~ -name "validate-env.sh" -path "*deep*sota*/scripts/checks/*" -type f 2>/dev/null | head -1
+bash <found_path>
+```
+
+**JSON output shape:**
+```json
+{
+  "valid": true,
+  "errors": [],
+  "warnings": [],
+  "lodestone_install": "/Users/.../lodestone/0.1.0",
+  "config_path": "/Users/.../.config/lodestone/config.toml",
+  "provider": "openai",
+  "model": "gpt-5.4"
+}
+```
+
+**If `valid == false`:** show `errors` to the user and stop — lodestone tool calls will fail until the env is fixed. Exit codes encode the specific failure:
+- `1` — no config and no provider key in the env (user needs to export one)
+- `2` — config selects a provider whose key isn't set
+- `3` — config TOML is malformed
+- `4` — lodestone install not found (marketplace install or dev clone required)
+- `5` — multiple provider keys set in a non-TTY context (cannot prompt)
+- `6` — `uv` not installed
+
+**SECURITY:** validate-env.sh only tests API-key *existence*. Key values are never echoed and never appear in the JSON output.
+
 ## Ingestion
 
 The user passed an arXiv link, github link, or blog post URL that they want ingested into lodestone. Ignore everything beyond this section and ingest the link.
