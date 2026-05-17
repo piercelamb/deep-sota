@@ -1,0 +1,12 @@
+{
+  "name": "deep-sota",
+  "description": "Paper- and repo-grounded research over the lodestone knowledge base",
+  "version": "0.1.0",
+  "author": {
+    "name": "piercelamb",
+    "url": "https://github.com/piercelamb"
+  },
+  "repository": "https://github.com/piercelamb/deep-sota",
+  "license": "Apache-2.0",
+  "keywords": ["research", "arxiv", "rag", "knowledge-base", "lodestone"]
+}

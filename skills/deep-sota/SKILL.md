@@ -1,6 +1,6 @@
 ---
 name: deep-sota
-description: "Research the user's arXiv/repo knowledge base using a retrieval tool called lodestone to answer questions with paper-grounded and repo-grounded citations. Use when the user is requesting research or building something new or greenfield. Will ground the users request in research, but also enable finding novelty."
+description: "Research the user's arXiv/repo knowledge base using a MCP retrieval tool called lodestone to answer questions with paper-grounded and repo-grounded citations. Use when the user is requesting research or building something new or greenfield. Use when you're considering calling lodestone MCP tools. Will ground the users request in research and also enable finding novelty."
 argument-hint: <research question>
 allowed-tools: mcp__lodestone__search mcp__lodestone__bm25 mcp__lodestone__lookup mcp__lodestone__browse mcp__lodestone__overview mcp__lodestone__collection mcp__lodestone__coverage mcp__lodestone__toc mcp__lodestone__toc_many mcp__lodestone__read mcp__lodestone__figure mcp__lodestone__repo_tree mcp__lodestone__read_code mcp__lodestone__repo mcp__lodestone__citations mcp__lodestone__tables mcp__lodestone__schema mcp__lodestone__query mcp__lodestone__ingest_paper mcp__lodestone__ingest_repo mcp__lodestone__ingest_post Read Grep Glob
 ---
@@ -17,21 +17,29 @@ All access goes through the `mcp__lodestone__*` MCP tools. Do not shell out to `
 
 **When not to use lodestone:** if the user's question is about the codebase you're sitting in (its files, its bugs, its tests, its history), don't reach for lodestone. Lodestone is for arXiv research and ingested external repos, not for navigating the current working directory.
 
-## CRITICAL: First action — validate lodestone
+## Ingestion
 
-**BEFORE calling any `mcp__lodestone__*` tool**, run `validate-env.sh` once per session.
+The user passed an arXiv link, github link, or blog post URL that they want ingested into lodestone. Ignore everything beyond the Ingestion section and ingest the link.
 
-It confirms lodestone is installed, then reads `~/.config/lodestone/config.toml` (the same path lodestone itself uses). If the config is missing, it walks the user through the same first-run picker lodestone's CLI does — provider (from whichever of `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` are set) and model — and persists the choice.
+### Confirm classify-stage config (ingestion-only)
 
-**Locate and run:**
+Ingestion is the only path that touches an LLM — lodestone makes one structured "classify" call per source to assign domain + collection + topics from the current taxonomy. This whole subsection is skipped when /deep-sota is invoked for research or plan-grounding — jump straight to "Fulfill a task or ground a plan" below.
+
+Cheap path: `Read(~/.config/lodestone/config.toml)`. If the file exists with `[llm].provider` and `[llm].model` set, you're done — start the ingest.
+
+Fall through to `validate-env.sh` only when:
+- **First-run setup** — Read returns "file not found." The script walks the user through the same picker lodestone's own CLI uses (provider from whichever of `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` are set, then a model from that provider's catalog) and persists the choice to `config.toml`. Subsequent ingestions skip the script entirely.
+- **Diagnose a failure** — an `ingest_*` call returns an auth/config error. Re-run the script to surface the specific failure and offer repair.
+
+Don't invoke `validate-env.sh` preemptively — the script's purpose is the first-run picker, not a recurring health check.
+
 ```bash
-find "$(pwd)" -name "validate-env.sh" -path "*/deep_sota/scripts/checks/*" -type f 2>/dev/null | head -1
-# Fallback if not in the repo:
-# find ~ -name "validate-env.sh" -path "*deep*sota*/scripts/checks/*" -type f 2>/dev/null | head -1
-bash <found_path>
+find ~/.claude/plugins/cache -name "validate-env.sh" -path "*/deep-sota/*/scripts/checks/*" -type f 2>/dev/null | head -1
 ```
 
-**JSON output shape:**
+Then run: `bash <found_path>`.
+
+**Success JSON shape:**
 ```json
 {
   "valid": true,
@@ -44,7 +52,7 @@ bash <found_path>
 }
 ```
 
-**If `valid == false`:** show `errors` to the user and stop — lodestone tool calls will fail until the env is fixed. Exit codes encode the specific failure:
+**On `valid == false`:** show `errors` to the user and stop until the env is fixed. Exit codes pinpoint the failure:
 - `1` — no config and no provider key in the env (user needs to export one)
 - `2` — config selects a provider whose key isn't set
 - `3` — config TOML is malformed
@@ -52,11 +60,9 @@ bash <found_path>
 - `5` — multiple provider keys set in a non-TTY context (cannot prompt)
 - `6` — `uv` not installed
 
-**SECURITY:** validate-env.sh only tests API-key *existence*. Key values are never echoed and never appear in the JSON output.
+**SECURITY:** `validate-env.sh` only tests API-key *existence*. Key values are never echoed and never appear in the JSON output.
 
-## Ingestion
-
-The user passed an arXiv link, github link, or blog post URL that they want ingested into lodestone. Ignore everything beyond this section and ingest the link.
+### Run the ingest
 
 - arXiv URL or bare ID → `mcp__lodestone__ingest_paper(url=<arxiv_url_or_id>)`. If the paper ships a code repo URL, the linked repo is registered and cloned automatically as a follow-up — do not call `ingest_repo` separately for it. Pass `force=true` to wipe and re-ingest. Optional `domain=<slug>` overrides the classifier's domain.
 - Standalone github/gitlab/bitbucket URL (no associated paper) → `mcp__lodestone__ingest_repo(url=<repo_url>)`. Optional `force`, `domain`.
@@ -70,7 +76,7 @@ The user needs a task fulfilled that would benefit from research or a plan would
 
 ### Top-down Research
 
-If you aren't sure what keywords to pass, or want a more complete perspective of the entire knowledge base, Lodestone maintains a taxonomy of domains and collections that sort papers/repos/posts into different buckets. To research from a "top-down" perspective, start by returning this taxonomy to get a feel for what areas you can drill deeper into.
+If you aren't sure what keywords to pass, or want a more complete perspective of the entire knowledge base, Lodestone maintains a taxonomy of domains and collections that sort papers/repos/posts into different categories. To research from a "top-down" perspective, start by returning this taxonomy to get a feel for what areas you can drill deeper into.
 
 - `mcp__lodestone__overview()` — full nested domains → collections tree. Each domain and each collection carries per-kind counts: `paper_count`, `post_count`, `repo_count`. Pass `domain=<slug>` to restrict to one domain.
 
@@ -90,15 +96,13 @@ As lodestone fills with more and more data, top-down is the preferred method of 
 
 ### Coverage / negative-evidence queries
 
-When you need to claim "lodestone has (no / weak / strong) coverage of X" without three separate searches and a fragile vocabulary guess, use `mcp__lodestone__coverage(topic=<str>, domain=<slug>?)`. One call returns: `papers_matched` + top 5 (FTS over sections), `repos_matched` + top 5 (FTS over READMEs), `collections_exact` (case-insensitive equality), and `collections_nearest` / `entities_nearest` / `topics_nearest` / `aliases_nearest` (rapidfuzz ≥70, bucketed by `term_type`). No heuristic `"high|medium|low"` label — the structured counts + similarity scores are the citation-grade signal. Run this as the backstop before asserting a gap.
+When you need to claim "lodestone has (no / weak / strong) coverage of X" use `mcp__lodestone__coverage(topic=<str>, domain=<slug>?)`. One call returns: `papers_matched` + top 5 (FTS over sections), `repos_matched` + top 5 (FTS over READMEs), `collections_exact` (case-insensitive equality), and `collections_nearest` / `entities_nearest` / `topics_nearest` / `aliases_nearest` (rapidfuzz ≥70, bucketed by `term_type`). No heuristic `"high|medium|low"` label — the structured counts + similarity scores are the citation-grade signal. Run this as the backstop before asserting a gap.
 
 ### Bottom-up Research
 
 If the query patterns are obvious from context, Lodestone offers github-query-flavored, keyword-based, exploratory search. This "bottom-up" approach gives you a feel for how your keywords land across the whole database.
 
-**Default first move: `mcp__lodestone__search(query=[...])`.** It hits all three FTS dimensions in one call (taxonomy, paper+post sections, repo READMEs), supports multi-query fan-out, and is the cheapest way to orient. Fall back to `bm25` only when you need to page into a single surface, and to `lookup` when you already know the canonical surface form you're resolving.
-
-- `mcp__lodestone__search(query=<q_or_array>, domain=<slug>?, limit=5, union=false, recency_boost=0.2, since=<YYYY|YYYY-MM-DD>?)` — returns three buckets in one call: taxonomy (canonical entity/topic/collection hits, each tagged with `kind`), sections (BM25 over a polymorphic FTS5 table holding paper section text *and* blog-post section text — both surface together, keyed by a globally-unique slug), readmes (BM25 over READMEs for every ingested repo, paper-linked and standalone alike — paper-linked rows additionally carry `paper_name` so you can pivot back to the prose). No images — kept cheap for orientation. Inherits the same AND→OR fallback and `recency_boost`/`since` knobs as `bm25` (no-op on README/taxonomy buckets).
+- **Default first move:** `mcp__lodestone__search(query=<q_or_array>, domain=<slug>?, limit=5, union=false, recency_boost=0.2, since=<YYYY|YYYY-MM-DD>?)` — returns three buckets in one call: taxonomy (canonical entity/topic/collection hits, each tagged with `kind`), sections (BM25 over a polymorphic FTS5 table holding paper section text *and* blog-post section text — both surface together, keyed by a globally-unique slug), readmes (BM25 over READMEs for every ingested repo, paper-linked and standalone alike — paper-linked rows additionally carry `paper_name` so you can pivot back to the prose). No images — kept cheap for orientation. Inherits the same AND→OR fallback and `recency_boost`/`since` knobs as `bm25` (no-op on README/taxonomy buckets).
 - Multi-query fan-out: pass `query=["chain of thought", "tree of thoughts", "self-consistency"]` (up to 8 strings); each is parsed and executed independently. Default returns per-query H2 sections; pass `union=true` to RRF-merge into one ranked list where each hit carries `matched_queries: [i, j, ...]` (use when you want "any doc matching any of these N concepts"). `limit` is shared across the fan-out — keep it small.
 - Same syntax as `bm25` plus: `surface:sections|readmes|taxonomy` (omit for all three), `kind:entity|topic|collection` (narrow taxonomy bucket).
 - **Note:** `search` accepts `limit` but **not** `offset`. For deep paging into one bucket, switch to `bm25` (sections/readmes) or `lookup` (taxonomy).
@@ -110,7 +114,7 @@ Fallbacks once `search` has oriented you:
 
 ### After exploratory queries
 
-Once exploration has surfaced candidate papers or posts, work down this ladder — each rung is meaningfully more expensive than the one above it. The `slug` argument on `toc`, `toc_many`, and `read` is polymorphic — papers and posts share one slug namespace, so any of these tools resolve a paper or post slug transparently. (`figure` is paper-only and still takes `paper=` — see below.)
+Once exploration has surfaced candidate papers or posts, work down this ladder — each rung is meaningfully more expensive than the one above it. The `slug` argument on `toc`, `toc_many`, and `read` is polymorphic — papers and posts share one slug namespace, so any of these tools resolve a paper or post slug transparently.
 
 1. **Default: `toc` → `read(section=...)`.** Pull the table of contents first, then read only the relevant slice. This is the right move for nearly every "tell me what source X says about Y" follow-up.
 2. **Comparing across sources: `toc_many`.** Use when you're triaging several candidates (papers and/or posts) and need to see their structures side by side before picking a slice.
@@ -120,10 +124,14 @@ The tools:
 
 - `mcp__lodestone__toc(slug=<slug>)` — level-1..3 ATX header tree for one source (paper or post). Response carries `slug` and `toc[]`.
 - `mcp__lodestone__toc_many(slugs=[<slug1>, <slug2>, ...])` — same shape, batched, mix of paper and post slugs allowed. Slugs that don't resolve are reported in `missing` instead of raising — a typo in one doesn't abandon the rest. Response carries `slugs`, `results[]` (each with `slug` + `toc[]`), `missing[]`.
-- `mcp__lodestone__read(slug=<slug>, section="<title>")` — `section` is a hierarchical `Parent > Child` breadcrumb (e.g. `"Method"`, `"Method > Setup"`, `"Experiments > Setup"`). Suffix-match, case-insensitive, on the title path. Matcher normalizes both sides: strips wrapping `**…**`/`*…*`, leading dotted-number prefixes (`4.`, `4.1`, `4.1.2`), and trailing `:` — so `"Architecture > Document Quality Classifier"` resolves against TOC titles stored as `**4.1 Document Quality Classifier**`. Verbatim queries still work. Any `(figure:N)` refs in the slice are auto-attached as inline images (paper sources only — post bodies don't carry figure refs).
+- `mcp__lodestone__read(slug=<slug>, section="<title>")` — `section` is a hierarchical `Parent > Child` breadcrumb (e.g. `"Method"`, `"Method > Setup"`, `"Experiments > Setup"`). Suffix-match, case-insensitive, on the title path. Any `(figure:N)` refs in the slice are auto-attached as inline images.
 - `mcp__lodestone__read(slug=<slug>)` — omit `section` to get the full markdown body. Expensive — prefer a section slice when possible.
 
-To pull a single figure as an inline image: `mcp__lodestone__figure(paper=<paper_slug>, n=<int_or_display_label>)`. **Papers only in v1** — the `paper=` arg name is honest here; passing a post slug raises `"figures unavailable for posts"` (trafilatura HTML→markdown doesn't populate the `figures` BLOB table). `n` is tried as integer `figure_number` first, then as a `display_number` (caption label like `"Figure 3a"`).
+### Citations
+
+**Citation graph.** Reach the graph via `mcp__lodestone__citations(slug=<slug>, direction=<outbound|inbound>)` — it bakes the polymorphism (papers + posts) and the resolved/missing/unresolvable split in for you. Drop to `query` only when you need a traversal the tool doesn't expose. Useful calls:
+- **Outbound — "what does paper / post X lean on?"** `mcp__lodestone__citations(slug=<slug>)` (direction defaults to `outbound`). Returns three buckets: `resolved`, cited sources already in Lodestone, `missing`, cited arxiv ids we don't have, each with an `ingest_hint` carrying the exact `ingest_paper` call, and `unresolvable` (no arxiv id at all). Capped at 500 rows with `truncated=true` if exceeded.
+- **Inbound — "who cites paper X?"** `mcp__lodestone__citations(slug=<paper_slug>, direction="inbound")` unions papers and posts that cite the target, ordered by date DESC. Paper-only.
 
 ### Code repos
 
@@ -160,18 +168,13 @@ You are a mechanism for agentic search over the lodestone database. Every token 
 ## None of the above fits my need
 
 In the event none of the above fits your need you can:
-- Return all lodestone tables: `mcp__lodestone__tables(include_internal=false)` — lists every user table / view / virtual table; FTS5/vec0 shadow tables (suffixed `_data`, `_idx`, `_content`, `_docsize`, `_config`) are filtered out unless `include_internal=true`.
+- Return all lodestone tables: `mcp__lodestone__tables(include_internal=false)` — lists every user table / view / virtual table; FTS5/vec0 shadow tables are filtered out unless `include_internal=true`.
 - Return the schema for a given table or multiple tables: `mcp__lodestone__schema(tables=<name_or_array>)` — CREATE DDL + columns + indexes. Names that don't resolve land in `missing`.
 - Execute read-only queries directly on the DB: `mcp__lodestone__query(sql=<single_select>)`. Engine-enforced read-only (mode=ro URI); DML/DDL returns `read_only_violation`. Exactly one statement per call. 1000-row hard cap (`truncated=true` on overflow). 5s wall-clock timeout. BLOB columns are summarized as `{_blob: true, size_bytes: N}` — fetch real binary content via `figure` or `read_code`.
-
-**Citation graph.** Two parallel tables hold outbound arxiv-id citations: `paper_references(paper_id, bibitem_id, ref_number, raw_text, cited_arxiv_id, cited_paper_id)` for paper bibliographies (the extra `bibitem_id` / `ref_number` columns let you map a `\[N\]` marker in a paper body back to its bib entry) and `post_references(post_id, cited_arxiv_id, cited_paper_id, raw_text)` for blog-post citations (no numbered bibliography). Both share the same resolution semantics: `cited_paper_id` is forward-filled at convert time and backward-filled when a future `ingest_paper` lands an arxiv id earlier sources already cited. Reach the graph via `mcp__lodestone__citations(slug=<slug>, direction=<outbound|inbound>)` — it bakes the polymorphism (papers + posts) and the resolved/missing/unresolvable split in for you. Drop to `query` only when you need a traversal the tool doesn't expose. Useful calls:
-- **Outbound — "what does paper / post X lean on?"** `mcp__lodestone__citations(slug=<slug>)` (direction defaults to `outbound`). Returns three buckets: `resolved` (cited sources already in the corpus, with `slug` / `title` / `cited_status` to pivot via `read` / `toc`), `missing` (cited arxiv ids we don't have, each with an `ingest_hint` carrying the exact `ingest_paper` call), and `unresolvable` (no arxiv id at all). Capped at 500 rows with `truncated=true` if exceeded.
-- **Inbound — "who cites paper X?"** `mcp__lodestone__citations(slug=<paper_slug>, direction="inbound")` unions papers and posts that cite the target, ordered by date DESC. Paginates via `limit` (default 50) / `offset`; response carries `total_hits` / `has_more`. Paper-only — passing a post slug returns `unsupported_direction` (cited_paper_id only points at papers).
-- **Ingest hints — "what's cited but missing?"** Already surfaced by the `outbound` `missing` bucket — each row's `ingest_hint` is the literal `ingest_paper(url=...)` call to run. The SQL escape hatch (`WHERE cited_arxiv_id IS NOT NULL AND cited_paper_id IS NULL` across either reference table) is still available if you want a corpus-wide rollup of unfulfilled citations rather than the per-source bucket.
 
 If lodestone doesn't have it, say so — don't paper over the gap with training-data recall. Note that lodestone doesn't have it and return anything nearby the request if you have it. Before asserting a gap, run `coverage(topic=…)` so the negative claim is defensible.
 
 ## Novelty
-If the /deep-sota skill has been invoked then almost certainly the user desires their task to be grounded in their lodestone database of research papers and code repos. However, use of Lodestone should include looking for novelty at the edges of the users request. Seek to include novelty you find in your responses. By novelty, we mean ideas that are related to what you're researching that the user likely doesnt know about.
+If the /deep-sota skill has been invoked then almost certainly the user desires their task to be grounded in their lodestone database of research papers and code repos. However, use of Lodestone should include looking for novelty at the edges of the users request. Seek to include novelty you find in your responses. By novelty, we mean ideas that are related to what you're researching that the user likely doesnt know about or doesn't remember.
 
 
