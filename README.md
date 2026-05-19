@@ -22,7 +22,7 @@ Install `lodestone` *first*, then `/deep-sota`:
 /plugin install lodestone
 /plugin install deep-sota
 ```
-Restart Claude Code.
+Restart Claude Code. The first session pre-warms lodestone's Python dependencies (~30–90s, one-time, hash-gated against future sessions). If `/deep-sota` reports missing `mcp__lodestone__*` tools, run **`/lodestone:doctor`**.
 
 **Optional — pre-seed lodestone's taxonomy** before your first ingest. Either use [my taxonomy](https://github.com/piercelamb/lodestone/blob/main/taxonomy.json) or write your own in the same shape, then point Claude at [`seed_taxonomy.py`](https://github.com/piercelamb/lodestone/blob/main/_system/scripts/seed_taxonomy.py). Skip seeding entirely and the classify step grows the taxonomy from scratch as you ingest — both paths are fully supported. See [Seeding the Taxonomy](https://github.com/piercelamb/lodestone#seeding-the-taxonomy) in the lodestone README.
 
@@ -170,7 +170,7 @@ Result: Grounded answers with section-level citations, inline figures, real
 
 > The marketplace add line uses `piercelamb/lodestone` — all five `piercelamb-plugins` (the Deep Trilogy, lodestone, and deep-sota) ship from the same marketplace listing, but pulling it via the lodestone repo makes the install order self-documenting: install the thing `/deep-sota` requires *before* `/deep-sota`.
 
-Restart Claude Code. The first lodestone invocation runs `uv sync` to build its venv (~30s–2 min once, near-instant after). Two CPU-only HuggingFace models (`bge-small-en-v1.5` for embeddings, `gliner2-large-v1` for entity extraction, ~400 MB total) download lazily on the first ingest.
+Restart Claude Code. The first session runs lodestone's `SessionStart` prewarm hook to build its venv (~30–90s once, near-instant after — the hook hash-gates against `pyproject.toml` + `uv.lock`). Two CPU-only HuggingFace models (`bge-small-en-v1.5` for embeddings, `gliner2-large-v1` for entity extraction, ~400 MB total) download lazily on the first ingest. If `mcp__lodestone__*` tools don't appear after the prewarm message, run **`/lodestone:doctor`**.
 
 **2. Configure a classifier provider (one-time):**
 
@@ -359,7 +359,7 @@ Then scroll to "Installed", find `lodestone` *first* and click "Enable", then do
 
 > **Already installed `/deep-project`, `/deep-plan`, or `/deep-implement`?** All five plugins share the `piercelamb-plugins` marketplace. Skip the `marketplace add` step — but you still need to run `/plugin install lodestone` before `/plugin install deep-sota`.
 
-Restart Claude Code after install. The first invocation runs `uv sync` for lodestone (~30s–2 min once). Embedding weights download lazily on the first `ingest_*` call.
+Restart Claude Code after install. The first session pre-warms lodestone's dependencies via a `SessionStart` hook (~30–90s once, hash-gated thereafter). Embedding weights download lazily on the first `ingest_*` call. If `mcp__lodestone__*` tools don't appear, run **`/lodestone:doctor`**.
 
 ### Manual Installation
 
@@ -470,7 +470,7 @@ API keys are tested for existence only — values are never echoed and never app
 
 ## Requirements
 
-- Claude Code
+- Claude Code **≥ 2.1.144** — older versions hit `.mcp.json` regressions that block lodestone's MCP tools from registering, which leaves `/deep-sota` with nothing to drive.
 - [`lodestone`](https://github.com/piercelamb/lodestone) (sibling plugin)
 - Python ≥ 3.11
 - `uv` package manager (for lodestone)
@@ -525,16 +525,18 @@ The `/deep-sota` plugin itself ships only a skill, a marketplace listing, and th
 
 **Issue**: The plugin entrypoint can't locate `uv`.
 
-**Solution**: Install `uv` from [astral.sh/uv](https://astral.sh/uv) and ensure it's on `PATH`. The plugin won't fall back to system Python.
+**Solution**: Install `uv` from [astral.sh/uv](https://astral.sh/uv) and ensure it's on `PATH`. The plugin won't fall back to system Python. **`/lodestone:doctor` flags this too** — preferred over running `validate-env.sh` for the same purpose, since the doctor covers install health holistically (Claude Code version, venv state, MCP registration) and `validate-env.sh` only covers classifier-config readiness.
 
 ### `mcp__lodestone__*` tools missing
 
 **Issue**: The skill registers but the `mcp__lodestone__*` tools never appear in the tool registry.
 
-**Solution**:
+**Solution**: Run **`/lodestone:doctor`** from the lodestone plugin — it diagnoses Claude Code version, `uv` presence, venv state, MCP server registration, and DB writability in one shot, and prints a fix line per failure.
+
+If `/lodestone:doctor` itself can't run, fall back to:
 - Confirm lodestone is installed *and* enabled (`/plugin enable lodestone`)
 - Restart Claude Code — MCP tool registration happens at startup
-- On Claude Code 2.1.116+, user-configured stdio MCP servers can silently drop tools ([#51736](https://github.com/anthropics/claude-code/issues/51736)). The plugin install sidesteps this — make sure you installed via `/plugin install lodestone`, not as a hand-configured MCP server
+- Confirm Claude Code is ≥ 2.1.144 — older versions hit `.mcp.json` regressions (paginated `tools/list` dropping pages, plugin servers disappearing after `/clear`) that block lodestone tools from reaching the session
 
 ### Empty / nonsensical answers on research questions
 
