@@ -23,44 +23,19 @@ The user passed an arXiv link, github link, or blog post URL that they want inge
 
 ### Confirm classify-stage config (ingestion-only)
 
-Ingestion is the only path that touches an LLM — lodestone makes one structured "classify" call per source to assign domain + collection + topics from the current taxonomy. This whole subsection is skipped when /deep-sota is invoked for research or plan-grounding — jump straight to "Fulfill a task or ground a plan" below.
+Ingestion is the only path that touches an LLM (one structured "classify" call per source). Skip this subsection entirely when /deep-sota was invoked for research or plan-grounding.
 
-Cheap path: `Read(~/.config/lodestone/config.toml)`. If the file exists with `[llm].provider` and `[llm].model` set, you're done — start the ingest.
+1. **Cheap path.** `Read(~/.config/lodestone/config.toml)`. If `[llm].provider` and `[llm].model` are both set, you're done — start the ingest.
+2. **Otherwise, run the env probe** (detection-only — never prompts, never writes config):
+   ```bash
+   find ~/.claude/plugins/cache -name "validate-env.sh" -path "*/deep-sota/*/scripts/checks/*" -type f 2>/dev/null | head -1
+   ```
+   Then `bash <found_path>` and parse its JSON.
+3. **Branch on the JSON.** If `valid: true`, proceed. Otherwise:
+   - `config_status` in `{"missing", "incomplete"}` → read `references/provider_select.md` and follow it. That reference handles 0 / 1 / many providers and hands off to `references/model_select.md` for model choice and `config.toml` persistence.
+   - Any other `config_status` (`malformed`, `key_missing`, or install not found) → surface the `errors` array to the user and stop until they fix it.
 
-Fall through to `validate-env.sh` only when:
-- **First-run setup** — Read returns "file not found." The script walks the user through the same picker lodestone's own CLI uses (provider from whichever of `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` are set, then a model from that provider's catalog) and persists the choice to `config.toml`. Subsequent ingestions skip the script entirely.
-- **Diagnose a failure** — an `ingest_*` call returns an auth/config error. Re-run the script to surface the specific failure and offer repair.
-
-Don't invoke `validate-env.sh` preemptively — the script's purpose is the first-run picker, not a recurring health check.
-
-```bash
-find ~/.claude/plugins/cache -name "validate-env.sh" -path "*/deep-sota/*/scripts/checks/*" -type f 2>/dev/null | head -1
-```
-
-Then run: `bash <found_path>`.
-
-**Success JSON shape:**
-```json
-{
-  "valid": true,
-  "errors": [],
-  "warnings": [],
-  "lodestone_install": "/Users/.../lodestone/0.1.0",
-  "config_path": "/Users/.../.config/lodestone/config.toml",
-  "provider": "openai",
-  "model": "gpt-5.4"
-}
-```
-
-**On `valid == false`:** show `errors` to the user and stop until the env is fixed. Exit codes pinpoint the failure:
-- `1` — no config and no provider key in the env (user needs to export one)
-- `2` — config selects a provider whose key isn't set
-- `3` — config TOML is malformed
-- `4` — lodestone install not found (marketplace install or dev clone required)
-- `5` — multiple provider keys set in a non-TTY context (cannot prompt)
-- `6` — `uv` not installed
-
-**SECURITY:** `validate-env.sh` only tests API-key *existence*. Key values are never echoed and never appear in the JSON output.
+Don't run `validate-env.sh` preemptively — it's for the first-run picker and for diagnosing an ingest-time auth/config error.
 
 ### Run the ingest
 
