@@ -22,7 +22,11 @@ Install `lodestone` *first*, then `/deep-sota`:
 /plugin install lodestone
 /plugin install deep-sota
 ```
-Restart Claude Code. Then:
+Restart Claude Code.
+
+**Optional — pre-seed lodestone's taxonomy** before your first ingest. Either use [my taxonomy](https://github.com/piercelamb/lodestone/blob/main/taxonomy.json) or write your own in the same shape, then point Claude at [`seed_taxonomy.py`](https://github.com/piercelamb/lodestone/blob/main/_system/scripts/seed_taxonomy.py). Skip seeding entirely and the classify step grows the taxonomy from scratch as you ingest — both paths are fully supported. See [Seeding the Taxonomy](https://github.com/piercelamb/lodestone#seeding-the-taxonomy) in the lodestone README.
+
+Then:
 ```
 /deep-sota https://arxiv.org/abs/2305.10601    # ingest a paper
 /deep-sota "long-context retrieval"            # research a question
