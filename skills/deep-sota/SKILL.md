@@ -13,7 +13,7 @@ Lodestone is an arXiv paper/repo research retrieval tool served entirely from a 
 2. Fulfill a user task that should be informed by research
 3. You're planning an implementation and should ground the plan in research
 
-All access goes through the `mcp__lodestone__*` MCP tools. Do not shell out to `sqlite3` or hand-edit the DB.
+> **If `mcp__lodestone__*` tools aren't available in this session**, lodestone isn't loaded. Stop immediately and tell the user to run `/lodestone:doctor` — `/deep-sota` is non-functional without those tools. Don't attempt to substitute web search, training-data recall, or hand-rolled SQLite queries; the whole point of `/deep-sota` is paper-grounded answers from the user's local corpus.
 
 **When not to use lodestone:** if the user's question is about the codebase you're sitting in (its files, its bugs, its tests, its history), don't reach for lodestone. Lodestone is for arXiv research and ingested external repos, not for navigating the current working directory.
 
