@@ -6,8 +6,43 @@ You've resolved a single `provider` (one of `anthropic` / `openai` /
 
 ## Model catalogs
 
-Recommended is listed first. Keep in sync with lodestone's adapter
-catalogs — if lodestone adds a model, add it here too.
+### Preferred path — web-search for current model IDs
+
+Provider model IDs change constantly (Anthropic, OpenAI, and Google all
+ship monthly). The catalog below this section is a frozen snapshot and
+will drift. **Always try WebSearch first** and only fall back to the
+frozen catalog when WebSearch is unavailable or its results can't be
+parsed into a confident set of current IDs.
+
+Call `WebSearch` with a query targeted at the chosen provider's
+*official* model-listing documentation. One query is enough:
+
+- **anthropic**: `Anthropic Claude API model names site:docs.anthropic.com`
+- **openai**: `OpenAI API model IDs site:platform.openai.com/docs/models`
+- **gemini**: `Google Gemini API model versions site:ai.google.dev`
+
+From the results, extract 3–4 production-ready model IDs **in the
+provider's recommended order** (the docs invariably lead with the
+flagship). Each row needs:
+- the literal model ID string (e.g. `claude-opus-4-7`, *not* a friendly
+  name like "Claude Opus 4.7")
+- a one-clause description (most capable / balanced / fastest / cheapest)
+
+Quality bar before using web results:
+- IDs must come from the provider's own docs domain (anthropic.com,
+  openai.com, ai.google.dev) — not blog roundups or third-party listings.
+- If the search returns fewer than 2 confident IDs, or the IDs look
+  like marketing names rather than API strings, fall back.
+- Preview/experimental IDs are acceptable as the 4th slot but never as
+  the recommended/first slot.
+
+Tag the first row (the flagship) with `(Recommended)` in the
+AskUserQuestion option label.
+
+### Fallback catalog (used only if WebSearch fails)
+
+Recommended is listed first. This snapshot drifts over time — only use
+when the preferred path above didn't produce a usable set.
 
 - **anthropic**
   - `claude-opus-4-7` — most capable (Recommended)
@@ -32,9 +67,10 @@ Call `AskUserQuestion` exactly once:
   (substitute the provider name)
 - `header`: `"Model"`
 - `multiSelect`: `false`
-- `options`: the catalog rows above for the chosen provider, in catalog
-  order. Label the recommended row with the `(Recommended)` suffix per
-  the AskUserQuestion convention. Cap at 4 options — the harness limit.
+- `options`: the rows you assembled via WebSearch (preferred) or the
+  fallback catalog, in the order described above. Label the flagship
+  row with the `(Recommended)` suffix per the AskUserQuestion
+  convention. Cap at 4 options — the harness limit.
 
 The harness automatically appends an "Other" option. **Allow it here**
 — that slot lets the user type a custom model ID (e.g. a snapshot or
