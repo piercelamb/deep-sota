@@ -8,6 +8,9 @@
 ![Claude Code](https://img.shields.io/badge/Claude%20Code-Plugin-purple)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 
+> **Blog post:**
+> - [Lodestone: A SQLite-backed arXiv research paper retrieval system for Claude Code](https://medium.com/@pierce-lamb/lodestone-a-sqlite-backed-arxiv-research-paper-retrieval-system-for-claude-code-b77de201f0c8)
+
 `/deep-sota` (*deep state of the art*) is the dedicated front-end for [`lodestone`](https://github.com/piercelamb/lodestone) — **and only for lodestone**. It is not a standalone plugin. It ships a single skill whose entire purpose is to drive lodestone's 21 MCP tools (coverage checks, top-down taxonomy walks, bottom-up BM25 searches, section reads, citation traversal, inline figures, and code-repo reads) to ground your task in your own research corpus instead of letting Claude hallucinate. **Without the `lodestone` Claude Code plugin installed and enabled, `/deep-sota` has nothing to drive and will not work.** Install `lodestone` first, every time.
 
 Where [`/deep-plan`](https://github.com/piercelamb/deep-plan) is built for *planning* software and [`/deep-implement`](https://github.com/piercelamb/deep-implement) for *building* it, `/deep-sota` is built for *grounding* it: real citations, real figures, real training code, and an honest "lodestone doesn't have X" when it doesn't.
