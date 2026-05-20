@@ -24,10 +24,10 @@ Install `lodestone` *first*, then `/deep-sota`, then run `/lodestone:doctor` *be
 /plugin install lodestone
 /plugin install deep-sota
 /reload-plugins
-/mcp -> find lodestone -> enable
-/lodestone:doctor
+/lodestone:doctor # picks LLM provider/model + downloads HF models (~400 MB) — give it a few minutes
+/mcp -> find lodestone -> enable or reconnect
 ```
-Then **fully quit and relaunch Claude Code** (not `/reload-plugins`) — once. The doctor performs the one-time `uv sync` (~30–90s) and pre-seeds the venv. On the next launch Claude Code finds the venv ready on its first MCP-server attempt and `mcp__lodestone__*` tools register immediately. Two CPU-only HuggingFace models (`bge-small-en-v1.5` embeddings + `gliner2-large-v1` entity extraction, ~400 MB total) download lazily on the first ingest with live progress.
+Then **fully quit and relaunch Claude Code** (not `/reload-plugins`) — once. `/lodestone:doctor` is the canonical first-run setup: it runs the one-time `uv sync` (~30–90s) and pre-seeds the venv, walks you through the LLM provider + model picker (writing `~/.config/lodestone/config.toml`), and downloads the two CPU-only HuggingFace models (`bge-small-en-v1.5` embeddings + `gliner2-large-v1` entity extraction, ~400 MB total) in the background while you answer the picker prompts. On the next launch Claude Code finds the venv ready on its first MCP-server attempt, config in place, and models cached — `mcp__lodestone__*` tools register immediately and your first `/deep-sota` ingest doesn't have to download anything. If you skip doctor, both fall back gracefully: HF models download lazily on the first ingest with live progress, and `/deep-sota` will invoke `validate-env.sh` to run the provider/model picker on first use.
 
 > **Why doctor *before* restart?** Claude Code launches MCP servers in parallel with `SessionStart` prewarm hooks and won't retry one that fails mid-session. If you skip the doctor and just restart, the lodestone MCP server attempts to launch against an empty venv, exits 1, and stays unavailable until you restart *a second time*. Doctor-first preempts the race.
 
@@ -189,11 +189,11 @@ What each step does:
 
 > **Why doctor *before* restart?** Claude Code launches MCP servers in parallel with `SessionStart` prewarm hooks and won't retry one that fails mid-session — so if you skip the doctor and just restart, lodestone's MCP server attempts to launch against an empty venv, exits 1, and stays unavailable until you restart *a second time*. Doctor-first preempts the race. (Optional: run `/plugins` after the restart if you need the UI to enable/disable individual plugins.)
 
-Two CPU-only HuggingFace models (`bge-small-en-v1.5` for embeddings, `gliner2-large-v1` for entity extraction, ~400 MB total) download lazily on the first ingest with live progress. If `mcp__lodestone__*` tools still don't appear after the restart, re-run **`/lodestone:doctor`** — it diagnoses `uv` presence, venv state, MCP registration, and DB writability.
+The two CPU-only HuggingFace models (`bge-small-en-v1.5` embeddings + `gliner2-large-v1` entity extraction, ~400 MB total) are typically already cached because `/lodestone:doctor` downloaded them upfront; if you skipped doctor, they download lazily on the first ingest with live progress instead. If `mcp__lodestone__*` tools still don't appear after the restart, re-run **`/lodestone:doctor`** — it diagnoses `uv` presence, venv state, MCP registration, DB writability, HF model cache, and LLM provider config in one shot.
 
-**2. Configure a classifier provider (one-time):**
+**2. Make sure a classifier provider API key is exported:**
 
-Set at least one of these in your environment:
+`/lodestone:doctor` reads `$ANTHROPIC_API_KEY` / `$OPENAI_API_KEY` / `$GEMINI_API_KEY` from your shell to know which providers it can offer in the picker. Set at least one before running doctor:
 ```bash
 export ANTHROPIC_API_KEY="sk-ant-..."
 # and/or:
@@ -202,7 +202,7 @@ export OPENAI_API_KEY="sk-..."
 export GEMINI_API_KEY="..."
 ```
 
-The first `/deep-sota` ingest will walk you through the provider + model picker if a TOML config doesn't already exist. The classifier is the only LLM call in the lodestone pipeline — input is capped (~8k of paper prose, ~10k chars of blog or README), so per-ingest token cost is small and predictable.
+If you ran `/lodestone:doctor` with one or more of these set, your provider/model choice is already written to `~/.config/lodestone/config.toml` and you can skip ahead. If you skipped doctor, the first `/deep-sota` ingest will walk you through the picker as a fallback via the bundled `validate-env.sh`. The classifier is the only LLM call in the lodestone pipeline — input is capped (~8k of paper prose, ~10k chars of blog or README), so per-ingest token cost is small and predictable.
 
 **3. Ingest something:**
 ```
@@ -293,7 +293,7 @@ Pass a URL and the skill routes to the right ingestion tool:
 | GitHub / GitLab / Bitbucket | `ingest_repo` | Standalone repos with no paper anchor. |
 | Blog post URL | `ingest_post` | HTML → trafilatura → markdown. Same `collections` table as papers. |
 
-All three are resumable and emit MCP progress notifications. On first run, the skill checks `~/.config/lodestone/config.toml` and only invokes `validate-env.sh` if the config is missing or an ingest call returned an auth error — not preemptively.
+All three are resumable and emit MCP progress notifications. On first run, the skill checks `~/.config/lodestone/config.toml` and only invokes `validate-env.sh` if the config is missing or an ingest call returned an auth error — not preemptively. When the user has already run `/lodestone:doctor`, the config will exist and this branch is skipped entirely; `validate-env.sh` is now strictly a fallback for the skip-doctor case and for diagnosing ingest-time auth errors.
 
 ### 2. Research a question
 
@@ -376,7 +376,7 @@ What each step does:
 | `/plugin marketplace add piercelamb/lodestone` | Adds the `piercelamb-plugins` marketplace. Skip if you already have it from `/deep-project`, `/deep-plan`, or `/deep-implement`. |
 | `/plugin install lodestone` + `/plugin install deep-sota` | Installs both. Lodestone first; `/deep-sota` depends on its MCP tools. |
 | `/reload-plugins` | Makes the new slash commands available in the current session (without it, `/lodestone:doctor` won't resolve yet). |
-| `/lodestone:doctor` | Runs lodestone's one-time `uv sync` (~30–90s) and pre-seeds the venv. Idempotent — also doubles as a diagnostic. |
+| `/lodestone:doctor` | The canonical first-run setup: runs lodestone's `uv sync` (~30–90s) to seed the venv, walks you through the LLM provider + model picker (writes `~/.config/lodestone/config.toml`), and downloads the two HuggingFace models (~400 MB total) in the background while you answer the picker. Idempotent — also doubles as a diagnostic on later runs. |
 | Full quit + relaunch | Registers `mcp__lodestone__*` against the now-populated venv. |
 
 > **Why doctor *before* restart?** Claude Code launches MCP servers in parallel with `SessionStart` prewarm hooks and won't retry one that fails mid-session ([per its hook docs](https://code.claude.com/docs/en/hooks)). If you skip the doctor and just restart, the lodestone MCP server attempts to launch against an empty venv, exits 1, and stays unavailable until you restart *a second time*. Doctor-first preempts the race.
@@ -385,7 +385,7 @@ What each step does:
 
 > **Prefer the UI for enable/disable?** Run `/plugins` after the restart to scroll to "Installed" and manage each plugin individually.
 
-The two HuggingFace models (`bge-small-en-v1.5` + `fastino/gliner2-large-v1`, ~400 MB total) download lazily on the first `ingest_*` call with live `notifications/progress`. If `mcp__lodestone__*` tools still don't appear after the restart, re-run **`/lodestone:doctor`** — it diagnoses `uv` presence, venv state, MCP registration, and DB writability.
+The two HuggingFace models (`bge-small-en-v1.5` + `fastino/gliner2-large-v1`, ~400 MB total) are downloaded upfront by `/lodestone:doctor` in the canonical sequence above; if you skipped doctor, they fall back to lazy download on the first `ingest_*` call with live `notifications/progress`. If `mcp__lodestone__*` tools still don't appear after the restart, re-run **`/lodestone:doctor`** — it diagnoses `uv` presence, venv state, MCP registration, DB writability, HF model cache, and LLM provider config in one shot.
 
 ### Manual Installation
 
@@ -415,7 +415,7 @@ Same rule: pass `--plugin-dir` for `lodestone` before `deep-sota` so the MCP ser
 
 ### Configure the classifier (Optional but required for ingest)
 
-Set at least one LLM API key. The first ingest will prompt for provider + model selection if no config exists at `~/.config/lodestone/config.toml`:
+Set at least one LLM API key in your shell. Both `/lodestone:doctor` and `/deep-sota`'s first-ingest picker read these to know which providers they can offer:
 
 ```bash
 export ANTHROPIC_API_KEY="sk-ant-..."
@@ -425,7 +425,7 @@ export OPENAI_API_KEY="sk-..."
 export GEMINI_API_KEY="..."
 ```
 
-The plugin ships a `validate-env.sh` that runs lodestone's first-run picker on demand. The skill invokes it automatically on first-run or when an ingest hits an auth error — see [Configuration](#configuration).
+If you ran `/lodestone:doctor` in the canonical install sequence, your provider/model is already written to `~/.config/lodestone/config.toml` and the bundled `validate-env.sh` will never run. If you skipped doctor, the skill invokes `validate-env.sh` automatically on the first ingest or when one hits an auth error — see [Configuration](#configuration).
 
 ## Usage
 
@@ -469,13 +469,13 @@ temperature = 0.2
 
 Resolution order on every ingest call:
 
-1. **Config file exists?** Read provider + model from it. Done.
+1. **Config file exists?** Read provider + model from it. Done. (In the canonical install path this is always the case — `/lodestone:doctor` writes the config upfront.)
 2. **No config, only one provider API key set?** Silently pick that provider and the catalog's default model, write the config.
 3. **No config, multiple provider API keys set, TTY available?** Prompt the user (provider menu, then model menu), write the config.
 4. **No config, multiple keys set, no TTY?** Raise `ProviderAmbiguous`.
 
-The bundled `validate-env.sh` runs the first-run picker on demand. The skill invokes it only when:
-- The TOML doesn't exist yet (first-run setup)
+`/lodestone:doctor` is the **canonical** first-run picker — it writes the config before any ingest happens. The bundled `validate-env.sh` is the **fallback** picker; the skill invokes it only when:
+- The TOML doesn't exist yet (user skipped doctor)
 - An `ingest_*` call returned an auth/config error (diagnosis)
 
 It is **not** invoked preemptively — the picker's purpose is one-time setup, not a recurring health check.
