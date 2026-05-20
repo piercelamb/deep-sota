@@ -29,6 +29,8 @@ Install `lodestone` *first*, then `/deep-sota`, then run `/lodestone:doctor` *be
 ```
 Then **fully quit and relaunch Claude Code** (not `/reload-plugins`) — once. Done.
 
+**Optional — pre-seed the taxonomy** (domains and collections) before your first ingest. Either use [my taxonomy](./taxonomy.json) or write your own in the same shape, then point Claude at [`seed_taxonomy.py`](./_system/scripts/seed_taxonomy.py). Skip seeding entirely and the classify step grows the taxonomy from scratch as you ingest — both paths are fully supported. See [Seeding the Taxonomy](#seeding-the-taxonomy).
+
 Now seed your corpus — `/deep-sota` accepts arXiv, code repo, and blog post URLs:
 
 ```
@@ -36,8 +38,6 @@ Now seed your corpus — `/deep-sota` accepts arXiv, code repo, and blog post UR
 /deep-sota https://github.com/owner/repo                          # code repo
 /deep-sota https://lilianweng.github.io/posts/2023-06-23-agent/   # blog post
 ```
-
-**Optional — pre-seed lodestone's taxonomy** before your first ingest. Either use [my taxonomy](https://github.com/piercelamb/lodestone/blob/main/taxonomy.json) or write your own in the same shape, then point Claude at [`seed_taxonomy.py`](https://github.com/piercelamb/lodestone/blob/main/_system/scripts/seed_taxonomy.py). Skip seeding entirely and the classify step grows the taxonomy from scratch as you ingest — both paths are fully supported. See [Seeding the Taxonomy](https://github.com/piercelamb/lodestone#seeding-the-taxonomy) in the lodestone README.
 
 Once the corpus has a few papers, ask research questions:
 ```
