@@ -25,17 +25,17 @@ The user passed an arXiv link, github link, or blog post URL that they want inge
 
 Ingestion is the only path that touches an LLM (one structured "classify" call per source). Skip this subsection entirely when /deep-sota was invoked for research or plan-grounding.
 
-1. **Cheap path.** `Read(~/.config/lodestone/config.toml)`. If `[llm].provider` and `[llm].model` are both set, you're done — start the ingest.
-2. **Otherwise, run the env probe** (detection-only — never prompts, never writes config):
-   ```bash
-   find ~/.claude/plugins/cache -name "validate-env.sh" -path "*/deep-sota/*/scripts/checks/*" -type f 2>/dev/null | head -1
-   ```
-   Then `bash <found_path>` and parse its JSON.
-3. **Branch on the JSON.** If `valid: true`, proceed. Otherwise:
-   - `config_status` in `{"missing", "incomplete"}` → read `references/provider_select.md` and follow it. That reference handles 0 / 1 / many providers and hands off to `references/model_select.md` for model choice and `config.toml` persistence.
-   - Any other `config_status` (`malformed`, `key_missing`, or install not found) → surface the `errors` array to the user and stop until they fix it.
+`Read(~/.config/lodestone/config.toml)` and confirm both:
+- An `[llm]` section exists
+- Both `provider` and `model` are set to non-empty strings under it
 
-Don't run `validate-env.sh` preemptively — it's for the first-run picker and for diagnosing an ingest-time auth/config error.
+If the file is missing, the `[llm]` section is absent, or either value is empty / unset, **stop and tell the user**:
+
+> Lodestone needs an LLM provider + model configured before it can ingest. Run `/lodestone:doctor` — it walks you through provider/model selection and writes `~/.config/lodestone/config.toml`. Then re-run this command.
+
+Do not attempt to pick a provider or write the config yourself; doctor owns that flow. Do not invoke any ingest tool until config is in place.
+
+If both values are present, proceed to **Run the ingest** below — trust the config. If the configured provider's API key isn't set in the environment, the ingest tool's classify stage will surface a clear error; no need to pre-check env vars here.
 
 ### Run the ingest
 
