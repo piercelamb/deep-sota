@@ -24,8 +24,8 @@ Install `lodestone` *first*, then `/deep-sota`, then run `/lodestone:doctor` *be
 /plugin install lodestone
 /plugin install deep-sota
 /reload-plugins
-/mcp -> find lodestone -> enable
 /lodestone:doctor
+/mcp -> find lodestone -> enable or reconnect
 ```
 Then **fully quit and relaunch Claude Code** (not `/reload-plugins`) — once. The doctor performs the one-time `uv sync` (~30–90s) and pre-seeds the venv. On the next launch Claude Code finds the venv ready on its first MCP-server attempt and `mcp__lodestone__*` tools register immediately. Two CPU-only HuggingFace models (`bge-small-en-v1.5` embeddings + `gliner2-large-v1` entity extraction, ~400 MB total) download lazily on the first ingest with live progress.
 
