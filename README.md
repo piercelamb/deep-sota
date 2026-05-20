@@ -24,7 +24,7 @@ Install `lodestone` *first*, then `/deep-sota`:
 /plugin install lodestone
 /plugin install deep-sota
 ```
-Restart Claude Code. The first session runs a one-time dependency install (~30–90s) via lodestone's `SessionStart` prewarm hook — you'll see a `[lodestone] First-time dependency install…` line in the session and a `[lodestone] Dependency install complete.` line when it's done. Subsequent sessions skip this entirely. Run **`/lodestone:doctor`** if `mcp__lodestone__*` tools don't appear.
+Restart Claude Code. The first session runs a one-time dependency install (~30–90s) via lodestone's `SessionStart` prewarm hook — you'll see a `[lodestone] First-time dependency install…` line in the session and a `[lodestone] Dependency install complete.` line when it's done. Subsequent sessions skip this entirely. Two CPU-only HuggingFace models (`bge-small-en-v1.5` embeddings + `gliner2-large-v1` entity extraction, ~400 MB total) download lazily on the first ingest with live progress. If `mcp__lodestone__*` tools don't appear, run **`/lodestone:doctor`** — it will automatically run the prewarm hook for you when the venv is missing (the common `/plugin install`-mid-session case).
 
 **Optional — pre-seed lodestone's taxonomy** before your first ingest. Either use [my taxonomy](https://github.com/piercelamb/lodestone/blob/main/taxonomy.json) or write your own in the same shape, then point Claude at [`seed_taxonomy.py`](https://github.com/piercelamb/lodestone/blob/main/_system/scripts/seed_taxonomy.py). Skip seeding entirely and the classify step grows the taxonomy from scratch as you ingest — both paths are fully supported. See [Seeding the Taxonomy](https://github.com/piercelamb/lodestone#seeding-the-taxonomy) in the lodestone README.
 
@@ -361,7 +361,7 @@ Then scroll to "Installed", find `lodestone` *first* and click "Enable", then do
 
 > **Already installed `/deep-project`, `/deep-plan`, or `/deep-implement`?** All five plugins share the `piercelamb-plugins` marketplace. Skip the `marketplace add` step — but you still need to run `/plugin install lodestone` before `/plugin install deep-sota`.
 
-Restart Claude Code after install. The first session pre-warms lodestone's dependencies via a `SessionStart` hook (~30–90s once, hash-gated thereafter). Embedding weights download lazily on the first `ingest_*` call. If `mcp__lodestone__*` tools don't appear, run **`/lodestone:doctor`**.
+Restart Claude Code after install. The first session pre-warms lodestone's dependencies via a `SessionStart` hook (~30–90s once, hash-gated thereafter). The two HuggingFace models (`bge-small-en-v1.5` + `fastino/gliner2-large-v1`, ~400 MB total) download lazily on the first `ingest_*` call with live `notifications/progress`. If `mcp__lodestone__*` tools don't appear, run **`/lodestone:doctor`** — it offers to run the prewarm hook automatically when the venv is missing (e.g. you ran `/plugin install lodestone` mid-session, then `/reload-plugins`, which doesn't fire SessionStart hooks).
 
 ### Manual Installation
 
@@ -533,7 +533,7 @@ The `/deep-sota` plugin itself ships only a skill, a marketplace listing, and th
 
 **Issue**: The skill registers but the `mcp__lodestone__*` tools never appear in the tool registry.
 
-**Solution**: Run **`/lodestone:doctor`** from the lodestone plugin — it diagnoses Claude Code version, `uv` presence, venv state, MCP server registration, and DB writability in one shot, and prints a fix line per failure.
+**Solution**: Run **`/lodestone:doctor`** from the lodestone plugin — it diagnoses Claude Code version, `uv` presence, venv state, MCP server registration, DB writability, and HuggingFace model cache in one shot, prints a fix line per failure, and **automatically runs the prewarm hook when the venv is missing** (the common `/plugin install lodestone` + `/reload-plugins`-mid-session case). After the prewarm completes, run `/reload-plugins` to pick up the venv.
 
 If `/lodestone:doctor` itself can't run, fall back to:
 - Confirm lodestone is installed *and* enabled (`/plugin enable lodestone`)
