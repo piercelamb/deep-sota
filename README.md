@@ -16,13 +16,15 @@ Where [`/deep-plan`](https://github.com/piercelamb/deep-plan) is built for *plan
 
 ## TL;DR
 
+Requires Claude Code **≥ 2.1.144** and [`uv`](https://docs.astral.sh/uv/) on `PATH`.
+
 Install `lodestone` *first*, then `/deep-sota`:
 ```
 /plugin marketplace add piercelamb/lodestone
 /plugin install lodestone
 /plugin install deep-sota
 ```
-Restart Claude Code. The first session pre-warms lodestone's Python dependencies (~30–90s, one-time, hash-gated against future sessions). If `/deep-sota` reports missing `mcp__lodestone__*` tools, run **`/lodestone:doctor`**.
+Restart Claude Code. The first session runs a one-time dependency install (~30–90s) via lodestone's `SessionStart` prewarm hook — you'll see a `[lodestone] First-time dependency install…` line in the session and a `[lodestone] Dependency install complete.` line when it's done. Subsequent sessions skip this entirely. Run **`/lodestone:doctor`** if `mcp__lodestone__*` tools don't appear.
 
 **Optional — pre-seed lodestone's taxonomy** before your first ingest. Either use [my taxonomy](https://github.com/piercelamb/lodestone/blob/main/taxonomy.json) or write your own in the same shape, then point Claude at [`seed_taxonomy.py`](https://github.com/piercelamb/lodestone/blob/main/_system/scripts/seed_taxonomy.py). Skip seeding entirely and the classify step grows the taxonomy from scratch as you ingest — both paths are fully supported. See [Seeding the Taxonomy](https://github.com/piercelamb/lodestone#seeding-the-taxonomy) in the lodestone README.
 
