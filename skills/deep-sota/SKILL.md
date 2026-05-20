@@ -45,6 +45,12 @@ Don't run `validate-env.sh` preemptively — it's for the first-run picker and f
 
 All three tools are resumable and emit MCP progress notifications between stages.
 
+**Set expectations after kicking off the ingest call.** As soon as the tool call is in flight (don't wait for it to return), surface a message to the user along the lines of:
+
+> Ingest is running. This typically takes **5–10 minutes** on a typical machine — the bulk is **GLiNER2 entity extraction** over each section on CPU (this scales with the number of sections — a 60-section paper can be a few minutes alone), plus **entity/topic embedding and 5-tier resolution** against the existing taxonomy. The classify-stage LLM call is the only network roundtrip and is usually the smallest contributor. Progress notifications stream between stages.
+
+Phrase it in your own voice, but include the key facts: 5–10 min typical, GLiNER2 + entity/topic embedding + resolution are the dominant costs, progress streams between stages. This is informational only — don't ask the user to do anything; just let the tool call complete and proceed once it returns.
+
 ## Fulfill a task or ground a plan
 
 The user needs a task fulfilled that would benefit from research or a plan would benefit from research. There are two ways to kick off research on lodestone, top-down and bottom-up:
