@@ -16,7 +16,7 @@ Where [`/deep-plan`](https://github.com/piercelamb/deep-plan) is built for *plan
 
 ## TL;DR
 
-Requires Claude Code **≥ 2.1.144** and [`uv`](https://docs.astral.sh/uv/) on `PATH`.
+Requires [`uv`](https://docs.astral.sh/uv/) on `PATH`.
 
 Install `lodestone` *first*, then `/deep-sota`, then run `/lodestone:doctor` *before* you restart so the venv is populated by the time Claude Code launches the MCP server:
 ```
@@ -24,6 +24,7 @@ Install `lodestone` *first*, then `/deep-sota`, then run `/lodestone:doctor` *be
 /plugin install lodestone
 /plugin install deep-sota
 /reload-plugins
+/mcp -> find lodestone -> enable
 /lodestone:doctor
 ```
 Then **fully quit and relaunch Claude Code** (not `/reload-plugins`) — once. The doctor performs the one-time `uv sync` (~30–90s) and pre-seeds the venv. On the next launch Claude Code finds the venv ready on its first MCP-server attempt and `mcp__lodestone__*` tools register immediately. Two CPU-only HuggingFace models (`bge-small-en-v1.5` embeddings + `gliner2-large-v1` entity extraction, ~400 MB total) download lazily on the first ingest with live progress.
@@ -188,7 +189,7 @@ What each step does:
 
 > **Why doctor *before* restart?** Claude Code launches MCP servers in parallel with `SessionStart` prewarm hooks and won't retry one that fails mid-session — so if you skip the doctor and just restart, lodestone's MCP server attempts to launch against an empty venv, exits 1, and stays unavailable until you restart *a second time*. Doctor-first preempts the race. (Optional: run `/plugins` after the restart if you need the UI to enable/disable individual plugins.)
 
-Two CPU-only HuggingFace models (`bge-small-en-v1.5` for embeddings, `gliner2-large-v1` for entity extraction, ~400 MB total) download lazily on the first ingest with live progress. If `mcp__lodestone__*` tools still don't appear after the restart, re-run **`/lodestone:doctor`** — it diagnoses Claude Code version, `uv` presence, venv state, MCP registration, and DB writability.
+Two CPU-only HuggingFace models (`bge-small-en-v1.5` for embeddings, `gliner2-large-v1` for entity extraction, ~400 MB total) download lazily on the first ingest with live progress. If `mcp__lodestone__*` tools still don't appear after the restart, re-run **`/lodestone:doctor`** — it diagnoses `uv` presence, venv state, MCP registration, and DB writability.
 
 **2. Configure a classifier provider (one-time):**
 
@@ -384,7 +385,7 @@ What each step does:
 
 > **Prefer the UI for enable/disable?** Run `/plugins` after the restart to scroll to "Installed" and manage each plugin individually.
 
-The two HuggingFace models (`bge-small-en-v1.5` + `fastino/gliner2-large-v1`, ~400 MB total) download lazily on the first `ingest_*` call with live `notifications/progress`. If `mcp__lodestone__*` tools still don't appear after the restart, re-run **`/lodestone:doctor`** — it diagnoses Claude Code version, `uv` presence, venv state, MCP registration, and DB writability.
+The two HuggingFace models (`bge-small-en-v1.5` + `fastino/gliner2-large-v1`, ~400 MB total) download lazily on the first `ingest_*` call with live `notifications/progress`. If `mcp__lodestone__*` tools still don't appear after the restart, re-run **`/lodestone:doctor`** — it diagnoses `uv` presence, venv state, MCP registration, and DB writability.
 
 ### Manual Installation
 
@@ -495,7 +496,6 @@ API keys are tested for existence only — values are never echoed and never app
 
 ## Requirements
 
-- Claude Code **≥ 2.1.144** — older versions hit `.mcp.json` regressions that block lodestone's MCP tools from registering, which leaves `/deep-sota` with nothing to drive.
 - [`lodestone`](https://github.com/piercelamb/lodestone) (sibling plugin)
 - Python ≥ 3.11
 - `uv` package manager (for lodestone)
@@ -550,18 +550,17 @@ The `/deep-sota` plugin itself ships only a skill, a marketplace listing, and th
 
 **Issue**: The plugin entrypoint can't locate `uv`.
 
-**Solution**: Install `uv` from [astral.sh/uv](https://astral.sh/uv) and ensure it's on `PATH`. The plugin won't fall back to system Python. **`/lodestone:doctor` flags this too** — preferred over running `validate-env.sh` for the same purpose, since the doctor covers install health holistically (Claude Code version, venv state, MCP registration) and `validate-env.sh` only covers classifier-config readiness.
+**Solution**: Install `uv` from [astral.sh/uv](https://astral.sh/uv) and ensure it's on `PATH`. The plugin won't fall back to system Python. **`/lodestone:doctor` flags this too** — preferred over running `validate-env.sh` for the same purpose, since the doctor covers install health holistically (venv state, MCP registration) and `validate-env.sh` only covers classifier-config readiness.
 
 ### `mcp__lodestone__*` tools missing
 
 **Issue**: The skill registers but the `mcp__lodestone__*` tools never appear in the tool registry.
 
-**Solution**: Run **`/lodestone:doctor`** from the lodestone plugin — it diagnoses Claude Code version, `uv` presence, venv state, MCP server registration, DB writability, and HuggingFace model cache in one shot, prints a fix line per failure, and **automatically runs the prewarm hook when the venv is missing** (the common `/plugin install lodestone` + `/reload-plugins`-mid-session case). After the prewarm completes, run `/reload-plugins` to pick up the venv.
+**Solution**: Run **`/lodestone:doctor`** from the lodestone plugin — it diagnoses `uv` presence, venv state, MCP server registration, DB writability, and HuggingFace model cache in one shot, prints a fix line per failure, and **automatically runs the prewarm hook when the venv is missing** (the common `/plugin install lodestone` + `/reload-plugins`-mid-session case). After the prewarm completes, run `/reload-plugins` to pick up the venv.
 
 If `/lodestone:doctor` itself can't run, fall back to:
 - Confirm lodestone is installed *and* enabled (`/plugin enable lodestone`)
 - Restart Claude Code — MCP tool registration happens at startup
-- Confirm Claude Code is ≥ 2.1.144 — older versions hit `.mcp.json` regressions (paginated `tools/list` dropping pages, plugin servers disappearing after `/clear`) that block lodestone tools from reaching the session
 
 ### Empty / nonsensical answers on research questions
 
