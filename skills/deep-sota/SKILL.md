@@ -45,11 +45,13 @@ If both values are present, proceed to **Run the ingest** below — trust the co
 
 All three tools are resumable and emit MCP progress notifications between stages.
 
-**Set expectations after kicking off the ingest call.** As soon as the tool call is in flight (don't wait for it to return), surface a message to the user along the lines of:
+**Set expectations *before* kicking off the ingest call.** In the same turn that issues the tool call, prefix it with a short message to the user along the lines of:
 
 > Ingest is running. This typically takes **5–10 minutes** on a typical machine — the bulk is **GLiNER2 entity extraction** over each section on CPU (this scales with the number of sections — a 60-section paper can be a few minutes alone), plus **entity/topic embedding and 5-tier resolution** against the existing taxonomy. The classify-stage LLM call is the only network roundtrip and is usually the smallest contributor. Progress notifications stream between stages.
 
-Phrase it in your own voice, but include the key facts: 5–10 min typical, GLiNER2 + entity/topic embedding + resolution are the dominant costs, progress streams between stages. This is informational only — don't ask the user to do anything; just let the tool call complete and proceed once it returns.
+Phrase it in your own voice, but include the key facts: 5–10 min typical, GLiNER2 + entity/topic embedding + resolution are the dominant costs, progress streams between stages.
+
+Then call the ingest tool and **wait for it to return**. A 5–10 minute tool call is expected and normal — do not interpret the duration as a hang, do not claim a client-side timeout, and do not retry mid-flight. The MCP client keeps the call alive via the streamed progress notifications; the result envelope arrives when ingestion is done. Proceed once it returns.
 
 ## Fulfill a task or ground a plan
 
