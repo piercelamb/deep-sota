@@ -18,13 +18,17 @@ Where [`/deep-plan`](https://github.com/piercelamb/deep-plan) is built for *plan
 
 Requires Claude Code **≥ 2.1.144** and [`uv`](https://docs.astral.sh/uv/) on `PATH`.
 
-Install `lodestone` *first*, then `/deep-sota`:
+Install `lodestone` *first*, then `/deep-sota`, then run `/lodestone:doctor` *before* you restart so the venv is populated by the time Claude Code launches the MCP server:
 ```
 /plugin marketplace add piercelamb/lodestone
 /plugin install lodestone
 /plugin install deep-sota
+/reload-plugins
+/lodestone:doctor
 ```
-Restart Claude Code. The first session runs a one-time dependency install (~30–90s) via lodestone's `SessionStart` prewarm hook — you'll see a `[lodestone] First-time dependency install…` line in the session and a `[lodestone] Dependency install complete.` line when it's done. Subsequent sessions skip this entirely. Two CPU-only HuggingFace models (`bge-small-en-v1.5` embeddings + `gliner2-large-v1` entity extraction, ~400 MB total) download lazily on the first ingest with live progress. If `mcp__lodestone__*` tools don't appear, run **`/lodestone:doctor`** — it will automatically run the prewarm hook for you when the venv is missing (the common `/plugin install`-mid-session case).
+Then **fully quit and relaunch Claude Code** (not `/reload-plugins`) — once. The doctor performs the one-time `uv sync` (~30–90s) and pre-seeds the venv. On the next launch Claude Code finds the venv ready on its first MCP-server attempt and `mcp__lodestone__*` tools register immediately. Two CPU-only HuggingFace models (`bge-small-en-v1.5` embeddings + `gliner2-large-v1` entity extraction, ~400 MB total) download lazily on the first ingest with live progress.
+
+> **Why doctor *before* restart?** Claude Code launches MCP servers in parallel with `SessionStart` prewarm hooks and won't retry one that fails mid-session. If you skip the doctor and just restart, the lodestone MCP server attempts to launch against an empty venv, exits 1, and stays unavailable until you restart *a second time*. Doctor-first preempts the race.
 
 **Optional — pre-seed lodestone's taxonomy** before your first ingest. Either use [my taxonomy](https://github.com/piercelamb/lodestone/blob/main/taxonomy.json) or write your own in the same shape, then point Claude at [`seed_taxonomy.py`](https://github.com/piercelamb/lodestone/blob/main/_system/scripts/seed_taxonomy.py). Skip seeding entirely and the classify step grows the taxonomy from scratch as you ingest — both paths are fully supported. See [Seeding the Taxonomy](https://github.com/piercelamb/lodestone#seeding-the-taxonomy) in the lodestone README.
 
@@ -161,18 +165,30 @@ Result: Grounded answers with section-level citations, inline figures, real
 
 > **TL;DR**: Install `lodestone` *first*, then `/deep-sota`, restart, (optionally) seed the taxonomy, ingest at least one paper, then ask `/deep-sota` a research question. An empty corpus can't answer anything.
 
-**1. Install both plugins — lodestone first:**
+**1. Install both plugins — lodestone first, doctor before restart:**
 ```
 /plugin marketplace add piercelamb/lodestone
 /plugin install lodestone
 /plugin install deep-sota
-/plugin enable lodestone
-/plugin enable deep-sota
+/reload-plugins
+/lodestone:doctor
 ```
+
+Then **fully quit and relaunch Claude Code** (not `/reload-plugins`).
 
 > The marketplace add line uses `piercelamb/lodestone` — all five `piercelamb-plugins` (the Deep Trilogy, lodestone, and deep-sota) ship from the same marketplace listing, but pulling it via the lodestone repo makes the install order self-documenting: install the thing `/deep-sota` requires *before* `/deep-sota`.
 
-Restart Claude Code. The first session runs lodestone's `SessionStart` prewarm hook to build its venv (~30–90s once, near-instant after — the hook hash-gates against `pyproject.toml` + `uv.lock`). Two CPU-only HuggingFace models (`bge-small-en-v1.5` for embeddings, `gliner2-large-v1` for entity extraction, ~400 MB total) download lazily on the first ingest. If `mcp__lodestone__*` tools don't appear after the prewarm message, run **`/lodestone:doctor`**.
+What each step does:
+
+| Step | Purpose |
+|---|---|
+| `/reload-plugins` | Makes the new slash commands (incl. `/lodestone:doctor`) available in the current session. |
+| `/lodestone:doctor` | Runs the one-time `uv sync` (~30–90s) and pre-seeds the venv. Idempotent — doubles as a diagnostic. |
+| Full quit + relaunch | Registers the lodestone MCP server against the now-populated venv. |
+
+> **Why doctor *before* restart?** Claude Code launches MCP servers in parallel with `SessionStart` prewarm hooks and won't retry one that fails mid-session — so if you skip the doctor and just restart, lodestone's MCP server attempts to launch against an empty venv, exits 1, and stays unavailable until you restart *a second time*. Doctor-first preempts the race. (Optional: run `/plugins` after the restart if you need the UI to enable/disable individual plugins.)
+
+Two CPU-only HuggingFace models (`bge-small-en-v1.5` for embeddings, `gliner2-large-v1` for entity extraction, ~400 MB total) download lazily on the first ingest with live progress. If `mcp__lodestone__*` tools still don't appear after the restart, re-run **`/lodestone:doctor`** — it diagnoses Claude Code version, `uv` presence, venv state, MCP registration, and DB writability.
 
 **2. Configure a classifier provider (one-time):**
 
@@ -341,27 +357,34 @@ See [lodestone's MCP Tools section](https://github.com/piercelamb/lodestone#mcp-
 
 > **Order matters.** `lodestone` carries the MCP server and tools `/deep-sota` invokes — install it *first*, then `/deep-sota`. The commands below already do this; don't reorder them.
 
-**Option A: CLI commands**
+**Canonical sequence — install, reload, doctor, then one restart:**
 ```
 /plugin marketplace add piercelamb/lodestone
 /plugin install lodestone
 /plugin install deep-sota
-/plugin enable lodestone
-/plugin enable deep-sota
+/reload-plugins
+/lodestone:doctor
 ```
 
-**Option B: Via UI**
-```
-/plugin marketplace add piercelamb/lodestone
-/plugin install lodestone
-/plugin install deep-sota
-/plugins
-```
-Then scroll to "Installed", find `lodestone` *first* and click "Enable", then do the same for `deep-sota`.
+Then **fully quit and relaunch Claude Code** (not `/reload-plugins`).
 
-> **Already installed `/deep-project`, `/deep-plan`, or `/deep-implement`?** All five plugins share the `piercelamb-plugins` marketplace. Skip the `marketplace add` step — but you still need to run `/plugin install lodestone` before `/plugin install deep-sota`.
+What each step does:
 
-Restart Claude Code after install. The first session pre-warms lodestone's dependencies via a `SessionStart` hook (~30–90s once, hash-gated thereafter). The two HuggingFace models (`bge-small-en-v1.5` + `fastino/gliner2-large-v1`, ~400 MB total) download lazily on the first `ingest_*` call with live `notifications/progress`. If `mcp__lodestone__*` tools don't appear, run **`/lodestone:doctor`** — it offers to run the prewarm hook automatically when the venv is missing (e.g. you ran `/plugin install lodestone` mid-session, then `/reload-plugins`, which doesn't fire SessionStart hooks).
+| Step | Purpose |
+|---|---|
+| `/plugin marketplace add piercelamb/lodestone` | Adds the `piercelamb-plugins` marketplace. Skip if you already have it from `/deep-project`, `/deep-plan`, or `/deep-implement`. |
+| `/plugin install lodestone` + `/plugin install deep-sota` | Installs both. Lodestone first; `/deep-sota` depends on its MCP tools. |
+| `/reload-plugins` | Makes the new slash commands available in the current session (without it, `/lodestone:doctor` won't resolve yet). |
+| `/lodestone:doctor` | Runs lodestone's one-time `uv sync` (~30–90s) and pre-seeds the venv. Idempotent — also doubles as a diagnostic. |
+| Full quit + relaunch | Registers `mcp__lodestone__*` against the now-populated venv. |
+
+> **Why doctor *before* restart?** Claude Code launches MCP servers in parallel with `SessionStart` prewarm hooks and won't retry one that fails mid-session ([per its hook docs](https://code.claude.com/docs/en/hooks)). If you skip the doctor and just restart, the lodestone MCP server attempts to launch against an empty venv, exits 1, and stays unavailable until you restart *a second time*. Doctor-first preempts the race.
+
+> **Already installed `/deep-project`, `/deep-plan`, or `/deep-implement`?** All five plugins share the `piercelamb-plugins` marketplace. Skip the `marketplace add` step — but still run the rest of the sequence in order.
+
+> **Prefer the UI for enable/disable?** Run `/plugins` after the restart to scroll to "Installed" and manage each plugin individually.
+
+The two HuggingFace models (`bge-small-en-v1.5` + `fastino/gliner2-large-v1`, ~400 MB total) download lazily on the first `ingest_*` call with live `notifications/progress`. If `mcp__lodestone__*` tools still don't appear after the restart, re-run **`/lodestone:doctor`** — it diagnoses Claude Code version, `uv` presence, venv state, MCP registration, and DB writability.
 
 ### Manual Installation
 
