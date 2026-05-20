@@ -27,14 +27,22 @@ Install `lodestone` *first*, then `/deep-sota`, then run `/lodestone:doctor` *be
 /lodestone:doctor # picks LLM provider/model + downloads HF models (~400 MB) — give it a few minutes
 /mcp -> find lodestone -> enable or reconnect
 ```
-Then **fully quit and relaunch Claude Code** (not `/reload-plugins`) — once. 
+Then **fully quit and relaunch Claude Code** (not `/reload-plugins`) — once. Done.
+
+Now seed your corpus — `/deep-sota` accepts arXiv, code repo, and blog post URLs:
+
+```
+/deep-sota https://arxiv.org/abs/2305.10601                       # arXiv paper
+/deep-sota https://github.com/owner/repo                          # code repo
+/deep-sota https://lilianweng.github.io/posts/2023-06-23-agent/   # blog post
+```
 
 **Optional — pre-seed lodestone's taxonomy** before your first ingest. Either use [my taxonomy](https://github.com/piercelamb/lodestone/blob/main/taxonomy.json) or write your own in the same shape, then point Claude at [`seed_taxonomy.py`](https://github.com/piercelamb/lodestone/blob/main/_system/scripts/seed_taxonomy.py). Skip seeding entirely and the classify step grows the taxonomy from scratch as you ingest — both paths are fully supported. See [Seeding the Taxonomy](https://github.com/piercelamb/lodestone#seeding-the-taxonomy) in the lodestone README.
 
-Then:
+Once the corpus has a few papers, ask research questions:
 ```
-/deep-sota https://arxiv.org/abs/2305.10601    # ingest a paper
-/deep-sota "long-context retrieval"            # research a question
+/deep-sota "long-context retrieval"
+/deep-sota "what's the SOTA on agentic web search?"
 /deep-sota "what's the SOTA on RAG with KV-cache offloading?"
 ```
 
