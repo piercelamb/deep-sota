@@ -39,7 +39,7 @@ If both values are present, proceed to **Run the ingest** below — trust the co
 
 ### Run the ingest
 
-- arXiv URL or bare ID → `mcp__lodestone__ingest_paper(url=<arxiv_url_or_id>)`. If the paper ships a code repo URL, the linked repo is registered and cloned automatically as a follow-up — do not call `ingest_repo` separately for it. Pass `force=true` to wipe and re-ingest. Optional `domain=<slug>` overrides the classifier's domain.
+- **arXiv or ACL Anthology URL / bare ID** → `mcp__lodestone__ingest_paper(url=<arxiv_or_acl>)`. Accepts arxiv (`2512.03413`, `https://arxiv.org/abs/...`) **and** ACL Anthology (`2021.acl-long.285`, `P19-1001`, `https://aclanthology.org/<id>/`, or the `.pdf` / `.xml` / `.bib` asset URL). ACL papers ingest from MODS metadata + PDF body (no HTML/LaTeX fulltext exists), so no PwC repo discovery; otherwise same shape as arxiv. If the paper ships a code repo URL (arxiv path only), the linked repo is registered and cloned as a follow-up — do not call `ingest_repo` separately for it. Pass `force=true` to wipe and re-ingest. Optional `domain=<slug>` overrides the classifier's domain.
 - Standalone github/gitlab/bitbucket URL (no associated paper) → `mcp__lodestone__ingest_repo(url=<repo_url>)`. Optional `force`, `domain`.
 - Blog post URL (e.g. `https://lilianweng.github.io/posts/...`) → `mcp__lodestone__ingest_post(url=<post_url>)`. Runs fetch → trafilatura HTML→markdown → classify → extract → index. Optional `force`, `domain`.
 
